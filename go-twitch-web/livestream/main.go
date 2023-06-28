@@ -115,6 +115,5 @@ func StartStream(twitch_channel string) {
 }
 
 func main() {
-	database.SetupPostgres()
 	StartStream(os.Args[1])
 }
