@@ -6,4 +6,4 @@ vendor/.
 superset/
 go-twitch-web/gotwitch
 .git
-
+cover.out

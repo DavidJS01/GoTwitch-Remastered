@@ -34,7 +34,6 @@ func InsertTwitchMessage(username string, message string, channel string) {
 	}
 }
 
-
 func connectToDB() *sql.DB {
 	psqlInfo := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=disable",
 		user,
@@ -49,128 +48,6 @@ func connectToDB() *sql.DB {
 		panic(err)
 	}
 	return db
-}
-
-func createUpsertStreamEventFunction() {
-	db := connectToDB()
-	sqlStatement := `
-	create or replace function upsertStreamEvent(streamEventChannelName varchar) returns void
-	language plpgsql
-		AS $$
-			BEGIN
-			IF streamEventChannelName in (SELECT twitch_channel FROM twitch.stream_events) then
-				update twitch.stream_events se
-        set current_flag = false
-        where se.event_id = (
-					select event_id from stream_events_recent
-					WHERE rank_number=1
-					and twitch_channel = streamEventChannelName
-				);
-			
-				insert into twitch.stream_events (twitch_channel, current_flag)
-					select twitch_channel, true as current_flag  from stream_events_recent
-					WHERE rank_number=1
-					and twitch_channel = streamEventChannelName;
-			ELSE
-				INSERT INTO twitch.stream_events values (default, streamEventChannelName, true);
-			END IF;
-			END;
-		$$;
-	`
-	_, err := db.Exec(sqlStatement)
-	if err != nil {
-		panic(err)
-	}
-	db.Close()
-
-}
-
-func createMessageTable() {
-	db := connectToDB()
-	sqlStatement := `
-		create schema if not exists twitch;
-		create table if not exists twitch.stream_messages  (
-			id serial primary key,
-			twitch_channel varchar references twitch.twitch_channels(twitch_channel) not null,
-			username varchar not null,
-			message varchar not null,
-			message_timestamp timestamp without time zone default (now() at time zone 'utc') not null 
-		);
-	`
-	_, err := db.Exec(sqlStatement)
-	if err != nil {
-		panic(err)
-	}
-	db.Close()
-
-}
-
-func createStreamerTable() {
-	db := connectToDB()
-	sqlStatement := `
-		create schema if not exists twitch;
-		create table if not exists twitch.twitch_channels  (
-			twitch_channel varchar primary key
-		);
-	`
-	_, err := db.Exec(sqlStatement)
-	if err != nil {
-		panic(err)
-	}
-	db.Close()
-}
-
-func createStreamEventsTable() {
-	db := connectToDB()
-	sqlStatement := `
-		create schema if not exists twitch;
-		create table if not exists twitch.stream_events  (
-			event_id SERIAL primary KEY,
-			twitch_channel varchar references twitch.twitch_channels(twitch_channel) not null,
-			current_flag boolean not null,
-			time_added timestamp without time zone default (now() at time zone 'utc') not null
-		);
-	`
-	_, err := db.Exec(sqlStatement)
-	db.Close()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func createStreamEventsView() {
-	db := connectToDB()
-	sqlStatement := `
-		CREATE OR REPLACE VIEW stream_events_recent AS SELECT * from (
-			SELECT *, row_number() over (partition by se.twitch_channel  order by time_added desc) rank_number 
-			FROM twitch.stream_events se 
-		) t
-	 WHERE rank_number=1;
-	`
-	_, err := db.Exec(sqlStatement)
-	db.Close()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func createStreamEventsStatusTable() {
-	db := connectToDB()
-	sqlStatement := `
-		create schema if not exists twitch;
-		create table if not exists twitch.stream_events_status  (
-			id serial primary key,
-			event_id integer references twitch.stream_events(event_id) not null,
-			listening boolean not null,
-			pid integer not null,
-			time_added timestamp without time zone default (now() at time zone 'utc') not null
-		);
-	`
-	_, err := db.Exec(sqlStatement)
-	db.Close()
-	if err != nil {
-		panic(err)
-	}
 }
 
 func InsertStreamer(channel string) error {
@@ -279,13 +156,4 @@ func UpsertStreamEvent(twitchChannel string) error {
 	}
 	db.Close()
 	return err
-}
-
-func SetupPostgres() {
-	createStreamerTable()
-	createStreamEventsTable()
-	createMessageTable()
-	createStreamEventsStatusTable()
-	createStreamEventsView()
-	createUpsertStreamEventFunction()
 }

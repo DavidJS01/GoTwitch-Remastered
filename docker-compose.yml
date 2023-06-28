@@ -66,8 +66,6 @@ services:
     depends_on:
       # - sender
       - message-broker
-    secrets:
-      - twitchAuth
   messager:
     container_name: messager
     ports:
@@ -94,6 +92,3 @@ volumes:
 networks:
   dev-network:
     driver: bridge
-secrets:
-  twitchAuth:
-    external: true
