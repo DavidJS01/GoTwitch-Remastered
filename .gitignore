@@ -1,0 +1,9 @@
+.env
+gotwitch/.
+.idea
+greet
+vendor/.
+superset/
+go-twitch-web/gotwitch
+.git
+
