@@ -117,7 +117,7 @@ func TestParseTwitchMessage(t *testing.T) {
 	client, _ := createWebSocketClient(address, "ws")
 
 	// run twitch message test
-	parsedUsername, parsedMessage := parseTwitchMessage(mockTwitchMessage, "Katevolved", client, mockInsertTwitchMessage) // TODO: finish unit test
+	parsedUsername, parsedMessage := parseTwitchMessage(mockTwitchMessage, "Katevolved", client) // TODO: finish unit test
 
 	if parsedUsername != "username" {
 		fmt.Print(len(parsedUsername))
@@ -130,7 +130,7 @@ func TestParseTwitchMessage(t *testing.T) {
 	}
 
 	// run ping message test
-	parsedUsername, parsedMessage = parseTwitchMessage(mockPingMessage, "Katevolved", client, mockInsertTwitchMessage)
+	parsedUsername, parsedMessage = parseTwitchMessage(mockPingMessage, "Katevolved", client)
 	if parsedUsername != "" && parsedMessage != "" {
 		t.Errorf("Expected null parsed username when recieving PING message, got %s, %s", parsedUsername, parsedMessage)
 	}
