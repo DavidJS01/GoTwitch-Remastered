@@ -4,7 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
-	"log"
+	log "github.com/sirupsen/logrus"
+
 )
 
 type Streamer struct {
@@ -52,7 +53,6 @@ func connectToDB() *sql.DB {
 
 func InsertStreamer(channel string) error {
 	db := connectToDB()
-	log.Print(channel)
 	sqlStatement := `
 		INSERT INTO "twitch"."twitch_channels" (twitch_channel) 
 		VALUES ($1) on conflict do nothing;
@@ -99,7 +99,6 @@ func InsertStreamEventStatus(listening bool, pid int, twitchChannel string) erro
 }
 
 func GetStreamerData() ([]Streamer, error) {
-	streamers := []Streamer{}
 	db := connectToDB()
 	sqlStatement := `
 		SELECT  "twitch_channel", "is_active" FROM (
@@ -112,16 +111,18 @@ func GetStreamerData() ([]Streamer, error) {
 		panic(err)
 	}
 	defer rows.Close()
+	
+	streamers := []Streamer{}
 	var streamer Streamer
 	for rows.Next() {
 		err = rows.Scan(&streamer.Name, &streamer.Is_Active)
 		streamers = append(streamers, streamer)
-
 	}
 	db.Close()
 	if err != nil {
 		panic(err)
 	}
+
 	return streamers, err
 
 }
@@ -137,7 +138,7 @@ func GetLatestPID(streamer string) int {
 	rows := db.QueryRow(sqlStatement, streamer)
 	err := rows.Scan(&pid)
 	if err != nil {
-		log.Print("L")
+		log.Errorf("Error while scanning DB rows for latest PID: %s", err.Error())
 	}
 
 	db.Close()
