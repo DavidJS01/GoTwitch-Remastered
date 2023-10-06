@@ -1,0 +1,9 @@
+name: Docker Compose Actions Workflow
+on: pull_request
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build MySQL DB
+        run: docker-compose up -d db
