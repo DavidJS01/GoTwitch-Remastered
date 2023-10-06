@@ -5,12 +5,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
 	"net/url"
 	"os"
 	"regexp"
 	s "strings"
 	"test.com/m/internal/database"
-	log "github.com/sirupsen/logrus"
 )
 
 func parseUserName(twitchMessage string) string {
@@ -69,11 +69,11 @@ func authenticateClient(connection *websocket.Conn, twitchChannel string) {
 
 func parseTwitchMessage(message []byte, channel string, connection *websocket.Conn) (username string, parsedMessage string) {
 	messageString := string(message)
-	
+
 	if s.Contains(messageString, "PRIVMSG") {
 		message := parseMessage(messageString)
 		username := parseUserName(messageString)
-		fmt.Printf("%s: %s \n", username, message)
+		log.Infof("%s: %s \n", username, message)
 		return username, message
 	}
 	if s.Contains(messageString, "PING") {
@@ -87,8 +87,7 @@ func receiveHandler(connection *websocket.Conn, channel string) {
 		// read a message
 		_, msg, err := connection.ReadMessage()
 		if err != nil {
-			log.Printf("Error while recieving a twitch message: %s", err.Error())
-			return
+			log.Errorf("Error while recieving a twitch message: %s", err.Error())
 		} else {
 			// parse message for username and twitch chat message
 			parsedUsername, parsedMessage := parseTwitchMessage(msg, channel, connection)

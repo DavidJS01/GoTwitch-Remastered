@@ -44,8 +44,8 @@ services:
     image: rabbitmq:3.8-management
     container_name: message-broker
     ports:
-      - 5672:5672   # for sender and consumer connections
-      - 15672:15672 # for serve RabbitMQ GUI
+      - "5672:5672"   # for sender and consumer connections
+      - "15672:15672" # for serve RabbitMQ GUI
     volumes:
       - ${HOME}/dev-rabbitmq/data/:/var/lib/rabbitmq
       - ${HOME}/dev-rabbitmq/log/:/var/log/rabbitmq
@@ -69,7 +69,7 @@ services:
   messager:
     container_name: messager
     ports:
-      - 9090:9090
+      - "9090:9090"
     build:
       context: .
       dockerfile: ./docker/mq_sender/Dockerfile
