@@ -5,5 +5,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Build MySQL DB
+      - name: Build Postgres DB
         run: docker-compose up -d db
+
+      - uses: actions/checkout@v2
+      - name: Export env vars for DB Migrations
+        run: export GOOSE_DRIVER=postgres; export user=postgres dbname=postgres sslmode=disable host=172.17.0.1 port=5432 password=postgres
