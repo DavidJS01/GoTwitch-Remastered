@@ -5,10 +5,9 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-
 )
 
-type Streamer struct {
+type TwitchChannel struct {
 	Name      string
 	Is_Active bool
 }
@@ -29,10 +28,21 @@ func InsertTwitchMessage(username string, message string, channel string) {
 				INSERT INTO "postgres"."twitch"."stream_messages" (twitch_channel, username, message)
 				VALUES ($1, $2, $3)`
 	_, err := db.Exec(sqlStatement, channel, username, message)
-	db.Close()
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while inserting twitch message into the DB: %s", err.Error())
 	}
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while closing DB connection %s", err.Error())
+	}
+}
+
+func closeDBConnection(conn *sql.DB) error {
+	err := conn.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func connectToDB() *sql.DB {
@@ -52,15 +62,18 @@ func connectToDB() *sql.DB {
 }
 
 func InsertStreamer(channel string) error {
-	db := connectToDB()
+	var db = connectToDB()
 	sqlStatement := `
 		INSERT INTO "twitch"."twitch_channels" (twitch_channel) 
 		VALUES ($1) on conflict do nothing;
 	`
-	_, err := db.Exec(sqlStatement, channel)
-	db.Close()
+	var _, err = db.Exec(sqlStatement, channel)
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while trying to insert a streamer into the DB %s", err.Error())
+	}
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while closing the DB connection %s", err.Error())
 	}
 	return err
 }
@@ -76,11 +89,17 @@ func UpdateStreamEventStatus(pid int, twitchChannel string) error {
 	and ses.time_added = (select max(time_added)from twitch.stream_events_status where pid = $1 and twitch_channel = $2)
 	`
 	_, err := db.Exec(sqlStatement, pid, twitchChannel)
-	db.Close()
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while trying to update stream event status %s", err.Error())
+		return err
 	}
-	return err
+
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while trying to close the DB connection %s", err.Error())
+		return err
+	}
+	return nil
 }
 
 func InsertStreamEventStatus(listening bool, pid int, twitchChannel string) error {
@@ -91,43 +110,52 @@ func InsertStreamEventStatus(listening bool, pid int, twitchChannel string) erro
 		where twitch_channel = $3
 	`
 	_, err := db.Exec(sqlStatement, listening, pid, twitchChannel)
-	db.Close()
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while inserting into the stream events status table %s", err.Error())
+		return err
+	}
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while closing the DB connection %s", err.Error())
+		return err
 	}
 	return err
 }
 
-func GetStreamerData() ([]Streamer, error) {
+func GetStreamerData() ([]TwitchChannel, error) {
 	db := connectToDB()
 	sqlStatement := `
 		SELECT  "twitch_channel", "is_active" FROM (
-		SELECT *, rank() OVER (PARTITION BY "twitch_channel" ORDER BY "time_added" DESC) rank_number from twitch.streamers
+		SELECT *, rank() OVER (PARTITION BY "twitch_channel" ORDER BY "time_added" DESC) rank_number from twitch.twitch_channels
 		) AS t
 		WHERE rank_number = 1
 		`
 	rows, err := db.Query(sqlStatement)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer rows.Close()
-	
-	streamers := []Streamer{}
-	var streamer Streamer
+
+	var streamers []TwitchChannel
+	var streamer TwitchChannel
 	for rows.Next() {
 		err = rows.Scan(&streamer.Name, &streamer.Is_Active)
+		if err != nil {
+			return nil, err
+		}
 		streamers = append(streamers, streamer)
 	}
-	db.Close()
+	err = closeDBConnection(db)
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while closing the DB conenction %s", err.Error())
+		return nil, err
 	}
 
 	return streamers, err
 
 }
 
-func GetLatestPID(streamer string) int {
+func GetLatestPID(twitchChannel string) int {
 	db := connectToDB()
 	sqlStatement := `
 	select pid  from public.stream_events_recent ser
@@ -135,26 +163,59 @@ func GetLatestPID(streamer string) int {
 	where twitch_channel = $1
 	`
 	var pid int
-	rows := db.QueryRow(sqlStatement, streamer)
+	rows := db.QueryRow(sqlStatement, twitchChannel)
 	err := rows.Scan(&pid)
 	if err != nil {
 		log.Errorf("Error while scanning DB rows for latest PID: %s", err.Error())
 	}
 
-	db.Close()
+	err = closeDBConnection(db)
 	if err != nil {
-		panic(err)
+		log.Errorf("Error while closing the DB conenction %s", err.Error())
 	}
+
 	return pid
 }
 
 func UpsertStreamEvent(twitchChannel string) error {
 	db := connectToDB()
 	upsertStatement := `SELECT upsertStreamEvent($1);`
+
 	_, err := db.Exec(upsertStatement, twitchChannel)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	db.Close()
-	return err
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while closing the DB conenction %s", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func GetTwitchChannels() ([]string, error) {
+	db := connectToDB()
+	sqlStatement := `
+		SELECT  "twitch_channel" FROM twitch.twitch_channels
+	`
+	rows, err := db.Query(sqlStatement)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var twitchChannels []string
+	var channel string
+	for rows.Next() {
+		_ = rows.Scan(&channel)
+		twitchChannels = append(twitchChannels, channel)
+	}
+	err = closeDBConnection(db)
+	if err != nil {
+		log.Errorf("Error while closing the DB conenction %s", err.Error())
+		return nil, err
+	}
+
+	return twitchChannels, err
+
 }
